@@ -1,0 +1,538 @@
+# Analyzing the Data ----
+
+## Libraries ----
+
+library(tidyverse)
+library(stringr)
+library(ggcorrplot)
+library(caTools)
+library(Metrics)
+library(ggplot2)
+library(openxlsx)
+library(multcompView)
+
+## Calculating Anova for the whole experiment ----
+
+data <- read.csv("data.csv")
+data$Block <- as.factor(data$Block)
+data$Treatment <- as.factor(data$Treatment)
+data$Inoculation <- as.factor(data$Inoculation)
+data$DAS <- as.factor(data$DAS)
+
+variables <- c("Rn", "Gn", "Bn", "H", "S", "V", "MPRI", "ICVE", "Chlorophyll.A", "Chlorophyll.B", "Total.Chlorophyll", "NDVI")
+
+model_list <- list()
+
+xlsx_file <- "anova_summary.xlsx"
+wb <- createWorkbook()
+
+for (variable in variables) {
+  
+  dataUsed <- data %>%
+    select(DAS, Block, Treatment, Inoculation, {{ variable }}) %>%
+    group_by(DAS, Block, Treatment, Inoculation) %>%
+    summarise(Variable = mean(.data[[variable]], na.rm = TRUE))
+  
+  model <- aov(Variable ~ Block + Treatment*Inoculation*DAS,
+               data = dataUsed)
+  
+  model_name <- paste(variable, "Anova", sep = "_")
+  model_list[[model_name]] <- model
+  
+  summary_table <- data.frame(unclass(summary(model_list[[model_name]])), check.names = FALSE, stringsAsFactors = FALSE) %>%
+    rownames_to_column()
+  
+  addWorksheet(wb, sheetName = model_name)
+  writeData(wb, sheet = model_name, x = summary_table, startCol = 1, startRow = 1)
+  
+}
+
+saveWorkbook(wb, xlsx_file)
+
+## Tukey test for difference in treatment (Gn, S, MPRI, NDVI) ----
+
+data <- read.csv("data.csv")
+data$Block <- as.factor(data$Block)
+data$Treatment <- as.factor(data$Treatment)
+data$Inoculation <- as.factor(data$Inoculation)
+data$DAS <- as.factor(data$DAS)
+
+variables <- c("Gn", "S", "MPRI", "NDVI")
+
+xlsx_file <- "Treatment.xlsx"
+wb <- createWorkbook()
+
+for (variable in variables) {
+  
+  data_summary <- data %>%
+    select(Block, Treatment, {{ variable }}) %>%
+    group_by(Treatment) %>%
+    summarise(mean = mean(.data[[variable]], na.rm = TRUE),
+              sd = sd(.data[[variable]], na.rm = TRUE)) %>%
+    arrange(desc(mean))
+  
+  formula <- as.formula(paste(variable, "~ Block + Treatment*Inoculation*DAS"))
+  
+  model <- aov(formula,
+               data = data)
+  
+  model_name <- paste(variable, "Tukey", sep = "_")
+  
+  tukey <- TukeyHSD(model)
+  
+  tukey.cld <- multcompLetters4(model, tukey)
+  
+  cld <- as.data.frame.list(tukey.cld$`Treatment`)
+  data_summary$Tukey <- cld$Letters
+  
+  addWorksheet(wb, sheetName = model_name)
+  writeData(wb, sheet = model_name, x = data_summary, startCol = 1, startRow = 1)
+  
+}
+
+saveWorkbook(wb, xlsx_file)
+
+## Line graph for DAS (Rn, Gn, Bn. S, V, MPRI, NDVI)
+
+data <- read.csv("data.csv")
+
+variables <- c("Rn", "Bn", "Gn", "V", "S", "MPRI", "NDVI")
+
+for (variable in variables){
+  
+  datafgraph <- data %>%
+    dplyr::select(DAS, {{ variable }}) %>%
+    group_by(DAS) %>%
+    na.omit() %>%
+    mutate(SD = sd( .data[[variable]]), na.rm = TRUE) %>%
+    mutate(Variable = mean(.data[[variable]]), na.rm = TRUE) %>%
+    unique()
+  
+  p <- ggplot(datafgraph, aes(x = DAS, y = Variable)) +
+    geom_line(color = "black", linewidth = 0.7) +
+    geom_errorbar(aes(ymin = Variable - SD, ymax = Variable + SD), width = 0.2, color = "red") +
+    labs(x = "DAS", y = variable) +
+    theme_minimal()
+  
+  print(p)
+  
+  ggsave(filename = paste(variable, "Line_Plot.jpg", sep = "_"),
+         dpi  = 500,
+         bg="white")
+  
+}
+
+data$Block <- as.factor(data$Block)
+data$Treatment <- as.factor(data$Treatment)
+data$Inoculation <- as.factor(data$Inoculation)
+data$DAS <- as.factor(data$DAS)
+
+xlsx_file <- "DAS.xlsx"
+wb <- createWorkbook()
+
+for (variable in variables) {
+  
+  if(variable == "NDVI"){
+    data_summary <- data %>%
+      select(DAS, {{ variable }}) %>%
+      filter(DAS %in% c(31, 42, 53, 65)) %>%
+      group_by(DAS) %>%
+      summarise(mean = mean(.data[[variable]], na.rm = TRUE),
+                sd = sd(.data[[variable]], na.rm = TRUE)) %>%
+      arrange(desc(mean))
+  }else{
+    data_summary <- data %>%
+      select(DAS, {{ variable }}) %>%
+      group_by(DAS) %>%
+      summarise(mean = mean(.data[[variable]], na.rm = TRUE),
+                sd = sd(.data[[variable]], na.rm = TRUE)) %>%
+      arrange(desc(mean))
+  }
+  
+  formula <- as.formula(paste(variable, "~ Block + Treatment*Inoculation*DAS"))
+  
+  model <- aov(formula,
+               data = data)
+  
+  model_name <- paste(variable, "Tukey", sep = "_")
+  
+  tukey <- TukeyHSD(model)
+  
+  tukey.cld <- multcompLetters4(model, tukey)
+  
+  cld <- as.data.frame.list(tukey.cld$`DAS`)
+  data_summary$Tukey <- cld$Letters
+  
+  addWorksheet(wb, sheetName = model_name)
+  writeData(wb, sheet = model_name, x = data_summary, startCol = 1, startRow = 1)
+  
+}
+
+saveWorkbook(wb, xlsx_file)
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Calculating specific ANOVAs ----
+
+### Interaction Treatment x Inoculation x DAS obtaining the TretamentxInoculation by DAS ----
+
+data <- read.csv("datanew.csv")
+data$Bloco <- as.factor(data$Bloco)
+data$Inoculacao <- as.factor(data$Inoculacao)
+data$Tratamento <- as.factor(data$Tratamento)
+
+variablesTIDAS <- c("Rn", "Bn", "Gn","H", "V", "ICVE")
+DASList <- c(31, 42, 53, 65, 87, 101, 109)
+
+xlsx_file <- "Tukey_Bigger_Interaction_summary.xlsx"
+wb <- createWorkbook()
+
+for (variable in variablesTIDAS) {
+  
+  for (day in DASList){
+    
+    dataUsed <- data %>%
+      filter(DAS == day)
+    
+    data_summary <- dataUsed %>%
+         select(Bloco, Tratamento, Inoculacao, {{ variable }}) %>%
+         group_by(Tratamento, Inoculacao) %>%
+         summarise(mean = mean(.data[[variable]]),
+                   sd = sd(.data[[variable]])) %>%
+         arrange(desc(mean))
+    
+    dataUsed$DAS <- as.factor(dataUsed$DAS)
+    
+    formula <- as.formula(paste(variable, "~ Bloco + Tratamento*Inoculacao"))
+    
+    model <- aov(formula,
+                 data = dataUsed)
+    
+    model_name <- paste(variable, day, "Tukey", sep = "_")
+    
+    tukey <- TukeyHSD(model)
+    
+    tukey.cld <- multcompLetters4(model, tukey)
+    
+    cld <- as.data.frame.list(tukey.cld$`Tratamento:Inoculacao`)
+    data_summary$Tukey <- cld$Letters
+    
+    addWorksheet(wb, sheetName = model_name)
+    writeData(wb, sheet = model_name, x = data_summary, startCol = 1, startRow = 1)
+    
+  }
+    
+  
+}
+
+saveWorkbook(wb, xlsx_file)
+
+### Interaction Treatment x Inoculation x DAS obtaining the DAS by InoculationxTreatment ----
+data <- read.csv("dataNew.csv")
+data$Bloco <- as.factor(data$Bloco)
+data$DAS <- as.factor(data$DAS)
+
+variablesTIDAS <- c("Rn", "Bn", "Gn","H", "V", "ICVE")
+TreatmentList <- c(0, 25, 50, 75, 100)
+InoculationList <- c("com", "sem")
+
+xlsx_file <- "Tukey_Bigger_Interaction_DAS_summary.xlsx"
+wb <- createWorkbook()
+
+for (variable in variablesTIDAS) {
+  
+  for (treatment in TreatmentList){
+    
+    for(inoculation in InoculationList){
+      
+      dataUsed <- data %>%
+        filter(Tratamento == treatment,
+               Inoculacao == inoculation)
+      
+      data_summary <- dataUsed %>%
+        select(Bloco, Tratamento, Inoculacao, DAS, {{ variable }}) %>%
+        group_by(DAS, Tratamento, Inoculacao) %>%
+        summarise(mean = mean(.data[[variable]]),
+                  sd = sd(.data[[variable]])) %>%
+        arrange(desc(mean))
+      
+      dataUsed$Tratamento <- as.factor(dataUsed$Tratamento)
+      dataUsed$Inoculacao <- as.factor(dataUsed$Inoculacao)
+      
+      formula <- as.formula(paste(variable, "~ Bloco + DAS"))
+      
+      model <- aov(formula,
+                   data = dataUsed)
+      
+      model_name <- paste(variable, treatment, inoculation, "Tukey", sep = "_")
+      
+      tukey <- TukeyHSD(model)
+      
+      tukey.cld <- multcompLetters4(model, tukey)
+      
+      cld <- as.data.frame.list(tukey.cld$DAS)
+      
+      data_summary$Tukey <- cld$Letters
+      
+      data_summary <- data_summary %>% arrange(DAS)
+      
+      addWorksheet(wb, sheetName = model_name)
+      writeData(wb, sheet = model_name, x = data_summary, startCol = 1, startRow = 1)
+      
+    }
+    
+  }
+  
+}
+
+saveWorkbook(wb, xlsx_file)
+
+
+### Interaction Treatment x DAS ----
+
+data <- read.csv("dataNew.csv")
+data$Bloco <- as.factor(data$Bloco)
+
+variablesTDAS <- c("S", "MPRI", "Clof.A", "Clof.B", "Clorof.Total")
+DASList <- c(31, 42, 53, 65, 87, 101, 109)
+
+modelTDAS_list <- list()
+
+xlsx_file <- "TukeyTDAS_summary.xlsx"
+wb <- createWorkbook()
+
+for (variable in variablesTDAS) {
+  
+  for (day in DASList){
+    dataUsed <- data %>%
+      filter(DAS == day)
+    
+    data_summary <- dataUsed %>%
+      select(Bloco, Tratamento, DAS, {{ variable }}) %>%
+      group_by(DAS, Tratamento) %>%
+      na.omit() %>%
+      summarise(mean = mean(.data[[variable]], na.rm = TRUE),
+                sd = sd(.data[[variable]]), na.rm = TRUE) %>%
+      arrange(desc(mean))
+    
+    dataUsed$Tratamento <- as.factor(dataUsed$Tratamento)
+    
+    formula <- as.formula(paste(variable, "~ Bloco + Tratamento"))
+    
+    model <- aov(formula,
+                 data = dataUsed)
+    
+    model_name <- paste(variable, day, "Tukey", sep = "_")
+    
+    tukey <- TukeyHSD(model)
+    
+    tukey.cld <- multcompLetters4(model, tukey)
+    
+    cld <- as.data.frame.list(tukey.cld$Tratamento)
+    
+    data_summary$Tukey <- cld$Letters
+    
+    data_summary <- data_summary %>% arrange(Tratamento)
+    
+    addWorksheet(wb, sheetName = model_name)
+    writeData(wb, sheet = model_name, x = data_summary, startCol = 1, startRow = 1)
+    
+  }
+  
+}
+
+saveWorkbook(wb, xlsx_file)
+
+
+### Interaction Inoculation x DAS ---- 
+
+data <- read.csv("dataNew.csv")
+data$Bloco <- as.factor(data$Bloco)
+
+variablesTDAS <- c("S", "MPRI", "Clof.A", "Clof.B", "Clorof.Total", "NDVI")
+DASList <- c(31, 42, 53, 65, 87, 101, 109)
+
+modelTDAS_list <- list()
+
+xlsx_file <- "TukeyIDAS_summary.xlsx"
+wb <- createWorkbook()
+
+for (variable in variablesTDAS) {
+  
+  for (day in DASList){
+    dataUsed <- data %>%
+      filter(DAS == day)
+    
+    data_summary <- dataUsed %>%
+      select(Bloco, Inoculacao, DAS, {{ variable }}) %>%
+      group_by(DAS, Inoculacao) %>%
+      na.omit() %>%
+      summarise(mean = mean(.data[[variable]], na.rm = TRUE),
+                sd = sd(.data[[variable]]), na.rm = TRUE) %>%
+      arrange(desc(mean))
+    
+    dataUsed$Inoculacao <- as.factor(dataUsed$Inoculacao)
+    
+    formula <- as.formula(paste(variable, "~ Bloco + Inoculacao"))
+    
+    model <- aov(formula,
+                 data = dataUsed)
+    
+    model_name <- paste(variable, day, "Tukey", sep = "_")
+    
+    tukey <- TukeyHSD(model)
+    
+    tukey.cld <- multcompLetters4(model, tukey)
+    
+    cld <- as.data.frame.list(tukey.cld$Inoculacao)
+    
+    data_summary$Tukey <- cld$Letters
+    
+    data_summary <- data_summary %>% arrange(Inoculacao)
+    
+    addWorksheet(wb, sheetName = model_name)
+    writeData(wb, sheet = model_name, x = data_summary, startCol = 1, startRow = 1)
+    
+  }
+  
+}
+
+saveWorkbook(wb, xlsx_file)
+
+## Generating graphs ----
+
+data <- read.csv("dataNew.csv")
+data$Bloco <- as.factor(data$Bloco)
+data$Tratamento <- as.factor(data$Tratamento)
+data$Inoculacao <- as.factor(data$Inoculacao)
+
+### Line graph for DAS - All -----
+
+variables <- c("Rn", "Bn", "Gn","H", "V", "ICVE", "S", "MPRI", "Clof.A", "Clof.B", "Clorof.Total", "NDVI")
+
+for (variable in variables){
+  
+  datafgraph <- data %>%
+    dplyr::select(DAS, {{ variable }}) %>%
+    group_by(DAS) %>%
+    na.omit() %>%
+    mutate(SD = sd( .data[[variable]]), na.rm = TRUE) %>%
+    mutate(Variable = mean(.data[[variable]]), na.rm = TRUE) %>%
+    unique()
+  
+  p <- ggplot(datafgraph, aes(x = DAS, y = Variable)) +
+    geom_line(color = "black", linewidth = 0.7) +
+    geom_errorbar(aes(ymin = Variable - SD, ymax = Variable + SD), width = 0.2, color = "red") +
+    labs(x = "DAS", y = variable) +
+    theme_minimal()
+  
+  print(p)
+  
+  ggsave(filename = paste(variable, "Line_Plot.jpg", sep = "_"),
+         dpi  = 500,
+         bg="white")
+  
+}
+
+### Boxplot graph for Treatment and Inoculation ----
+
+variables <- c("Rn", "Bn", "Gn","H", "V", "ICVE", "S", "MPRI", "Clof.A", "Clof.B", "Clorof.Total", "NDVI")
+
+for (variable in variables){
+  
+  datafgraph <- data %>%
+    dplyr::select(Inoculacao, Tratamento, {{ variable }}) %>%
+    group_by(Tratamento, Inoculacao) %>%
+    na.omit() %>%
+    mutate(Inoculacao = ifelse(Inoculacao == "com", "yes", 
+                                ifelse(Inoculacao == "sem", "no", Inoculacao)))%>%
+    mutate(SD = sd( .data[[variable]]), na.rm = TRUE) %>%
+    mutate(Variable = mean(.data[[variable]]), na.rm = TRUE) %>%
+    select(Tratamento, Inoculacao, SD, Variable) %>%
+    unique()
+  
+  p <- ggplot(datafgraph, aes(x = Tratamento, y = Variable, fill = Inoculacao)) +
+    geom_bar(position='dodge', stat='identity')+
+    geom_errorbar(aes(ymin = Variable - SD, ymax = Variable + SD), width = 0.2, color = "red", position=position_dodge(0.9)) +
+    geom_text(aes(label=round(Variable, 3)), vjust=1.6, color="white", size=2.5, position=position_dodge(0.9))+
+    labs(x = "Treatment", y = variable, fill = "Inoculation")+
+    theme_minimal()
+  
+  print(p)
+  
+  ggsave(filename = paste(variable, "Bars_Plot.jpg", sep = "_"),
+         dpi  = 500,
+         bg="white")
+  
+}
+
+## Generating correlation matrix ----
+
+### With NDVI ----
+
+data <- read.csv("dataNew.csv")
+
+dataForCorrelationWNDVI <- data %>%
+  dplyr::select(-c(Bloco, Tratamento, Inoculacao, DAS)) %>%
+  tidyr::drop_na()
+
+ggcorrplot(cor(dataForCorrelationWNDVI),
+           type = "lower",
+           lab = TRUE)
+  
+### Without NDVI ----
+dataForCorrelationWONDVI <- data %>%
+  dplyr::select(-c(Bloco, Tratamento, Inoculacao, DAS, NDVI)) %>%
+  tidyr::drop_na()
+
+ggcorrplot(cor(dataForCorrelationWONDVI),
+           type = "lower",
+           lab = TRUE)
+
+## Linear model ----
+
+data <- read.csv("dataNew.csv")
+
+variables <- c("NDVI", "Clof.A", "Clof.B", "Clorof.Total")
+coefficients_df <- data.frame(Variable = character(0), Intercept = numeric(0))
+
+for (variable in variables){
+  
+  datanew <- data %>%
+    dplyr::select(-c(Bloco, Tratamento, Inoculacao, DAS)) %>%
+    mutate(Variable = .data[[variable]]) %>%
+    na.omit()
+  
+  formula <- as.formula(paste(variable, "~ Rn + Gn + H + V + S + Bn"))
+  
+  model <- lm(formula,
+              data = datanew)
+  
+  summary(model)
+  
+  coefficients_df <- rbind(coefficients_df, data.frame(Variable = variable, Intercept = coef(model)[1], Coefficients = coef(model)[-1]))
+  
+  p <- ggplot(datanew, aes(x=predict(model), y = Variable)) +
+      geom_point(na.rm = TRUE, color = "blue") +
+      geom_abline(linewidth = 2)
+  
+  print(p)
+  
+  ggsave(filename = paste(variable, "Predictions_Plot.jpg", sep = "_"),
+         dpi  = 500,
+         bg="white")
+  
+}
+
+write.csv(coefficients_df, "coefficients.csv", row.names = FALSE)
+
