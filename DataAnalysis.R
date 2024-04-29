@@ -164,7 +164,7 @@ ggsave(filename = "NDVI_Plot.jpg",
        bg="white")
 
 
-## Line graph for DAS (Rn, Gn, Bn. S, V, MPRI, NDVI) ----
+## Tukey test for difference in DAS (Rn, Gn, Bn. S, V, MPRI, NDVI) ----
 
 data <- read.csv("data.csv")
 
@@ -421,33 +421,9 @@ for (variable in variablesTIDAS) {
 
 saveWorkbook(wb, xlsx_file)
 
+## Linear models ----
 
-## Generating correlation matrix ----
-
-### With NDVI ----
-
-data <- read.csv("dataNew.csv")
-
-dataForCorrelationWNDVI <- data %>%
-  dplyr::select(-c(Bloco, Tratamento, Inoculacao, DAS)) %>%
-  tidyr::drop_na()
-
-ggcorrplot(cor(dataForCorrelationWNDVI),
-           type = "lower",
-           lab = TRUE)
-  
-### Without NDVI ----
-dataForCorrelationWONDVI <- data %>%
-  dplyr::select(-c(Bloco, Tratamento, Inoculacao, DAS, NDVI)) %>%
-  tidyr::drop_na()
-
-ggcorrplot(cor(dataForCorrelationWONDVI),
-           type = "lower",
-           lab = TRUE)
-
-## Linear model ----
-
-data <- read.csv("dataNew.csv")
+data <- read.csv("data.csv")
 
 variables <- c("NDVI", "Clof.A", "Clof.B", "Clorof.Total")
 coefficients_df <- data.frame(Variable = character(0), Intercept = numeric(0))
