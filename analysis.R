@@ -48,8 +48,8 @@ for (variable in variables) {
 write.csv(general_anova_table, "./Outputs/general_anova.csv", row.names = FALSE)
 
 # I observed that ICVE and the NGBDI presented p<0.05 in the triple interaction
-# and CHlo.A and Chlo.B presented p<0.05 in the interaction Inoculation:DAS and Treatment:DAS respectively
-# ExG, NGRDI, RGBVI, MGRVI, Total.Chlo and NDVI presented p<0.05 in DAS
+# and CHlo.A presented p<0.05 in the interaction Inoculation:DAS
+# ExG, NGRDI, RGBVI, MGRVI, Chlo.B Total.Chlo and NDVI presented p<0.05 in DAS
 # Lastly, ExG and NDVI presented p<0.05 in Inoculation
 
 ## Triple interaction ----
@@ -94,28 +94,6 @@ ID_interaction_graph <- ggplot(data = tukey_results, aes(x = DAS, y = emmean, fi
   geom_text(aes(label = .group), vjust = -2, size = 5, position=position_dodge(width = 0.9))+
   theme_minimal()+
   ylab('Chlorophyll A')
-
-## Treatment:DAS interaction ----
-model <- lmer(Chlorophyll.B~ Treatment*Inoculation*DAS + (1|Block), data = dataUsed)
-anova_results <- Anova(model, type = "III")
-emmeans_result <- emmeans(model, ~ Treatment*DAS)
-tukey_results <- cld(emmeans_result, Letters = letters, adjust = "tukey")
-tukey_results$`.group` <- rev(tukey_results$`.group`)
-tukey_results$Treatment <- factor(tukey_results$Treatment, levels = c("0%", "25%", "50%", "75%", "100%"))
-tukey_results$`.group`<-gsub("\\s", "", tukey_results$`.group`)
-
-dodger = position_dodge(width = 0.9)
-TD_interaction_graph <- ggplot(data = tukey_results, aes(x = DAS, y = emmean, fill = Treatment))+
-  geom_col(position = dodger)+
-  geom_errorbar(aes(ymin=lower.CL, ymax=upper.CL), position=position_dodge(width = 0.9), width = 0.7)+
-  geom_text(aes(label = .group), vjust = -7, size = 3.5, position=dodger)+
-  theme_minimal()+
-  ylab('Chlorophyll B')+
-  scale_fill_brewer(palette = "Paired")
-
-ggarrange(ID_interaction_graph, TD_interaction_graph, 
-          labels = c("A", "B"),
-          ncol = 2, nrow = 1)
 
 ## DAS ----
 
@@ -215,9 +193,25 @@ NDVI_DAS <- ggplot(data = tukey_results, aes(x = DAS, y=emmean, group = 1))+
 
 #---
 
-ggarrange(ExG_DAS, MGRVI_DAS, NGRDI_DAS, RGBVI_DAS, Total.Chlorophyll_DAS, NDVI_DAS,
-          labels = c("A", "B", "C", "D", "E", "F"),
-          ncol = 2, nrow = 3)
+model <- lmer(Chlorophyll.B ~ Treatment*Inoculation*DAS + (1|Block), data = dataUsed)
+anova_results <- Anova(model, type = "III")
+emmeans_result <- emmeans(model, ~ DAS)
+tukey_results <- cld(emmeans_result, Letters = letters, adjust = "tukey")
+tukey_results$`.group` <- rev(tukey_results$`.group`)
+tukey_results$`.group`<-gsub("\\s", "", tukey_results$`.group`)
+
+ChloB_DAS <- ggplot(data = tukey_results, aes(x = DAS, y=emmean, group = 1))+
+  geom_line(linewidth=1, color="blue")+
+  geom_text(aes(label = .group), vjust = -0.7, size = 4, position=dodger)+
+  theme_minimal()+
+  ylab('Chlorophyll B')+
+  coord_cartesian(clip = 'off')
+
+#---
+
+ggarrange(ExG_DAS, MGRVI_DAS, NGRDI_DAS, RGBVI_DAS, ChloB_DAS, Total.Chlorophyll_DAS, NDVI_DAS,
+          labels = c("A", "B", "C", "D", "E", "F", "G"),
+          ncol = 2, nrow = 4)
 
 ## Inoculation ----
 variables <- c("ExG", "NDVI")
