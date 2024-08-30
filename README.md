@@ -30,10 +30,10 @@ The [script](Algorithm.ipynb) used the library OpenCV to resize (50% of the orig
 
 From the segmented images were calculated the visible vegetative indices Modified Photochemical Reflectance Index (MPRI), Dark Green Color Index (DGCI), normalized R, G e B, and normalized H, S and V.
 
-To calculate the indices, was developed another Python [algorithm](Algorithm.ipynb) by the authors, available in this open GitHub repository. In the algorithm, using the OpenCV library, the B, G, and R channels were extracted using the function “split”. Then, the mean values of all the channels were calculated and divided by 255. With the new values of each channel, the H, S, and V indices were calculated, followed by the MPRI and DGCI indices using the aforementioned formulas.
+To calculate the indices, was developed another Python [algorithm](Algorithm.ipynb) by the authors, available in this open GitHub repository. In the algorithm, using the OpenCV library, the B, G, and R channels were extracted using the function “split”. Then, the mean values of all the channels were calculated and divided by 255 to normalize. With the new values of each channel, the H, S, and V indices were calculated, followed by all the used indices.
 
 ## Data analysis
 
-The statistical analysis was conducted using an [R algorithm](DataAnalysis.R) developed by the authors. The main packages used to perform the analysis were tidyverse, Metrics, and multicompview. Firstly, were performed an Anova analysis for all the variables, considering block, treatment, inoculation, and DAS as factors and the interaction between those factors. Lastly, linear models to relate the active vegetation indices and the passive were performed.
+The statistical analysis was conducted using an [R algorithm](analysis.R) developed by the authors. The main packages used to perform the analysis were tidyverse, lme4, emmeans, and multicompview. Firstly, were performed an Anova analysis for all the variables, considering block, treatment, inoculation, and DAS as factors and the interaction between those factors. Lastly, a correlation matrix was made
 
 
